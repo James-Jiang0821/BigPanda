@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Big Panda counter training: menu prices, side-order extras and docket shorthand.">
+<meta name="apple-mobile-web-app-title" content="Till Trainer">
+<meta name="theme-color" content="#B4231B">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<title>Big Panda Till Trainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one phone-width column — tabs, then a paper order docket, a till-style answer box, feedback. */
+:root{
+  --bg:#F3F1EE; --surface:#FFFFFF; --paper:#FFFEFB; --ink:#1E1715; --muted:#6E625C; --line:#E2DCD6;
+  --red:#B4231B; --red-ink:#FFFFFF; --gold:#C48A12; --good:#1F7A45; --good-bg:#E5F3EA; --bad:#B4231B; --bad-bg:#FBE7E4;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#161211; --surface:#211B19; --paper:#2A2321; --ink:#F2ECE8; --muted:#A99C95; --line:#3A312E;
+  --red:#E2554B; --red-ink:#1A0F0D; --gold:#E3AA3A; --good:#5CC48A; --good-bg:#16301F; --bad:#F07067; --bad-bg:#3A1A17; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#161211; --surface:#211B19; --paper:#2A2321; --ink:#F2ECE8; --muted:#A99C95; --line:#3A312E;
+  --red:#E2554B; --red-ink:#1A0F0D; --gold:#E3AA3A; --good:#5CC48A; --good-bg:#16301F; --bad:#F07067; --bad-bg:#3A1A17; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:16px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:520px;margin:0 auto;padding-block:18px 40px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.brand small{display:block;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);font-weight:700}
+.brand h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+.stats{display:flex;gap:14px;font-variant-numeric:tabular-nums;text-align:right}
+.stats div{display:flex;flex-direction:column}
+.stats b{font-size:20px;line-height:1.1}
+.stats span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.prompt{font:600 30px/1.2 var(--f-mono);overflow-wrap:anywhere}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.opt{font:600 16px var(--f-ui);padding:14px 10px;border:2px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);cursor:pointer;min-height:56px}
+.opt.right{border-color:var(--good);background:var(--good-bg);color:var(--good)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
+.opt:disabled{cursor:default}
+.rules-t{width:100%;border-collapse:collapse;font-size:15px}
+.rules-t td{padding:9px 14px;border-top:1px solid var(--line)}
+.rules-t tr:first-child td{border-top:0}
+.rules-t td:last-child{text-align:right;font-family:var(--f-mono);white-space:nowrap;color:var(--red)}
+#a-next{width:100%}
+.tabs button{font-size:14px!important}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px}
+.tabs button,.seg button{font:600 15px var(--f-ui);border:0;background:none;color:var(--muted);padding:10px 6px;border-radius:9px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--red);color:var(--red-ink)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:3px;background:var(--surface)}
+.seg button{padding:7px 12px;font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:500 13px var(--f-ui);border:1px solid var(--line);background:var(--surface);color:var(--muted);padding:6px 10px;border-radius:99px;cursor:pointer}
+.chip[aria-pressed="true"]{border-color:var(--red);color:var(--red);background:color-mix(in srgb,var(--red) 8%,var(--surface))}
+.label{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+/* docket */
+.docket{background:var(--paper);color:var(--ink);font-family:var(--f-mono);padding:22px 18px 18px;position:relative;
+  box-shadow:0 1px 0 var(--line),0 8px 24px -14px rgba(0,0,0,.35);border-radius:2px}
+.docket::before{content:"";position:absolute;left:0;right:0;top:-6px;height:12px;
+  background:radial-gradient(circle at 6px 0,transparent 6px,var(--paper) 6.5px) 0 6px/12px 12px repeat-x}
+.docket .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);border-bottom:1px dashed var(--line);padding-bottom:10px;margin-bottom:12px}
+.lines{display:flex;flex-direction:column;gap:12px;min-height:48px}
+.ln{display:grid;grid-template-columns:2.2ch 1fr;gap:6px;font-size:16px}
+.ln .q{font-weight:600}
+.ln .n{font-weight:600}
+.ln .s{display:block;color:var(--muted);font-weight:400;font-size:15px}
+.answer{display:flex;gap:10px;align-items:stretch}
+.money{flex:1;min-width:0;display:flex;align-items:center;background:var(--surface);border:2px solid var(--line);border-radius:12px;padding:0 14px}
+.money:focus-within{border-color:var(--ink)}
+.money span{font:600 24px var(--f-mono);color:var(--muted)}
+.money input{flex:1;min-width:0;border:0;background:none;color:var(--ink);font:600 26px var(--f-mono);padding:12px 6px;font-variant-numeric:tabular-nums}
+.money input:focus{outline:none}
+.btn{font:700 16px var(--f-ui);border:0;border-radius:12px;padding:0 20px;cursor:pointer;background:var(--red);color:var(--red-ink);min-height:56px}
+.btn.ghost{background:none;color:var(--muted);border:1px solid var(--line);min-height:44px;font-weight:600;font-size:14px;padding:0 14px}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.fb{border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.fb.ok{background:var(--good-bg)}
+.fb.no{background:var(--bad-bg)}
+.fb h2{margin:0;font-size:18px}
+.fb.ok h2{color:var(--good)} .fb.no h2{color:var(--bad)}
+.bd{font-family:var(--f-mono);font-size:14px;display:flex;flex-direction:column;gap:3px;font-variant-numeric:tabular-nums}
+.bd div{display:flex;justify-content:space-between;gap:12px}
+.bd .sub{color:var(--muted);padding-left:2.2ch}
+.bd .tot{border-top:1px dashed currentColor;margin-top:4px;padding-top:6px;font-weight:600}
+/* prices */
+.search{width:100%;font:500 16px var(--f-ui);padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink)}
+.grp{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.grp h3{margin:0;padding:12px 14px;font-size:15px;display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line)}
+.grp h3 em{font-style:normal;font-family:var(--f-mono);color:var(--red)}
+.grp .note{padding:8px 14px 0;font-size:13px;color:var(--muted);margin:0}
+.items{list-style:none;margin:0;padding:6px 0}
+.items li{display:flex;justify-content:space-between;gap:12px;padding:6px 14px;font-size:15px}
+.items li b{font-family:var(--f-mono);font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sauces{padding:10px 14px 14px;display:flex;flex-wrap:wrap;gap:6px}
+.sauces span{font-size:13px;padding:4px 9px;border-radius:99px;background:var(--bg);border:1px solid var(--line)}
+.rules{display:flex;flex-direction:column;gap:12px}
+.rules table{width:100%;border-collapse:collapse;font-size:15px}
+.rules td{padding:9px 14px;border-top:1px solid var(--line)}
+.rules td:last-child{text-align:right;font-family:var(--f-mono);white-space:nowrap}
+.flag{font-size:13px;color:var(--muted);padding:0 2px;margin:0}
+@media (prefers-reduced-motion:no-preference){.fb{animation:pop .18s ease-out}@keyframes pop{from{transform:translateY(4px);opacity:.4}}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><small>Big Panda · Markethill</small><h1>Till Trainer</h1></div>
+    <div class="stats">
+      <div><b id="st-streak">0</b><span>Streak</span></div>
+      <div><b id="st-acc">–</b><span>Right</span></div>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tab-quiz" aria-selected="true">Prices quiz</button>
+    <button role="tab" id="tab-abbr" aria-selected="false">Shorthand</button>
+    <button role="tab" id="tab-prices" aria-selected="false">Menu</button>
+    <button role="tab" id="tab-rules" aria-selected="false">Extras</button>
+  </nav>
+
+  <section id="v-quiz" style="display:flex;flex-direction:column;gap:14px">
+    <div class="row" style="justify-content:space-between">
+      <div class="seg" role="group" aria-label="Question type">
+        <button id="m-one" aria-pressed="true">One item</button>
+        <button id="m-order" aria-pressed="false">Full order</button>
+      </div>
+      <button class="btn ghost" id="skip">Skip</button>
+    </div>
+    <div>
+      <div class="label" style="margin-bottom:6px">Practise these</div>
+      <div class="chips" id="cats"></div>
+    </div>
+    <div class="row">
+      <span class="label">Docket</span>
+      <div class="seg" role="group" aria-label="Docket style">
+        <button id="d-full" aria-pressed="true">Full names</button>
+        <button id="d-short" aria-pressed="false">Shorthand</button>
+      </div>
+    </div>
+
+    <div class="docket" aria-live="polite">
+      <div class="meta"><span>COUNTER</span><span id="tno">#001</span></div>
+      <div class="lines" id="lines"></div>
+    </div>
+
+    <form class="answer" id="form" autocomplete="off">
+      <label class="money" for="ans"><span>£</span><input id="ans" inputmode="decimal" placeholder="0.00" aria-label="Total price"></label>
+      <button class="btn" id="go" type="submit">Check</button>
+    </form>
+    <p class="hint" id="hint">Type the total, e.g. 9.50 or 950. Enter to check.</p>
+    <div id="fb" hidden></div>
+  </section>
+
+  <section id="v-abbr" hidden style="flex-direction:column;gap:14px">
+    <div class="row" style="justify-content:space-between">
+      <div class="seg" role="group" aria-label="Shorthand practice">
+        <button id="a-write" aria-pressed="true">Write it</button>
+        <button id="a-read" aria-pressed="false">Read it</button>
+      </div>
+      <button class="btn ghost" id="a-skip">Skip</button>
+    </div>
+    <div class="docket">
+      <div class="meta"><span id="a-label">WRITE THE SHORTHAND FOR</span><span id="a-grp"></span></div>
+      <div class="prompt" id="a-prompt"></div>
+    </div>
+    <form class="answer" id="a-form" autocomplete="off">
+      <label class="money" for="a-ans"><input id="a-ans" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="e.g. C" aria-label="Shorthand"></label>
+      <button class="btn" id="a-go" type="submit">Check</button>
+    </form>
+    <div class="opts" id="a-opts" hidden></div>
+    <div id="a-fb" hidden></div>
+    <button class="btn" id="a-next" type="button" hidden>Next</button>
+    <div id="a-list" style="display:flex;flex-direction:column;gap:12px"></div>
+  </section>
+
+  <section id="v-prices" hidden style="flex-direction:column;gap:12px">
+    <input class="search" id="q" type="search" placeholder="Search the menu… e.g. satay, duck, chips">
+    <div id="plist" style="display:flex;flex-direction:column;gap:12px"></div>
+  </section>
+
+  <section id="v-rules" hidden>
+    <div class="rules" id="rules"></div>
+  </section>
+</div>
+
+<script>
+/* ===== PRICING RULES (edit here) ===== */
+// Main dishes (chicken, beef, pork, king prawn, special, veg, duck, fillet steak):
+// Boiled rice, chips or fried rice +30p; half & half +50p; soft noodles +£1.
+const SIDES=[
+  {label:"Boiled Rice",p:30,w:3},
+  {label:"Chips",p:30,w:3},
+  {label:"Fried Rice",p:30,w:3},
+  {label:"Half & Half",p:50,w:3},
+  {label:"Soft Noodles",p:100,w:1.5},
+];
+const RICE_SAUCE_EXTRA=50; // fried rice / chow mein "any sauce 50p extra"
+
+/* ===== MENU (prices in pence) ===== */
+const S={SC:"Salt & Chilli",GO:"Garlic & Onion",HC:"Honey Chilli Sauce",KP:"Kung Po Sauce",SA:"Satay Sauce",GC:"Garlic & Chilli Sauce",
+BB:"Black Bean Sauce",BP:"Black Pepper Sauce",GS:"Ginger & Spring Onion",PI:"Pineapple",MU:"Mushroom",TO:"Tomatoes",CN:"Cashew Nuts",
+SZ:"Szechuan Sauce",CU:"Curry Sauce",CS:"Chop Suey",SSC:"Sweet & Sour Cantonese Style",SSB:"Sweet & Sour in Batter",FY:"Foo Yong",
+OM:"Omelette",PK:"Peking Sauce",PL:"Plum Sauce",LE:"Lemon Sauce",OR:"Orange Sauce",XO:"XO Sauce",TS:"Thai Sweet Chilli",PP:"Pang Pang Sauce"};
+const L=s=>s.split(" ").map(k=>S[k]);
+const KPL="SC GO HC KP SA GC BB BP GS PI MU TO CN SZ CU CS SSC SSB FY OM PK XO TS PP";
+const MAINS=[
+  {g:"Chicken",p:920,s:L("SC GO HC KP SA GC BB BP GS PI MU TO CN SZ CU CS SSC SSB FY OM PK PL LE OR XO TS PP")},
+  {g:"Beef",p:920,s:L("SC GO HC KP SA GC BB BP GS PI MU TO CN SZ CU CS SSC FY OM PK XO TS PP")},
+  {g:"Pork",p:920,s:L("SC GO HC KP SA GC BB BP GS PI MU TO CN SZ CU CS SSC SSB")},
+  {g:"King Prawn",p:950,s:L(KPL)},
+  {g:"Special",p:950,s:L("GO KP SA GC BB BP GS MU CN SZ CU CS FY OM PK XO TS PP")},
+  {g:"Roast Duck",p:990,s:L("BB GS CU PK PL LE OR")},
+  {g:"Veg",p:800,s:L("HC KP SA GC BB BP CN SZ CU CS SSC")},
+  {g:"Fillet Steak",p:1450,s:L("BB BP GS SSC")},
+];
+const TUB_SAUCES=["Curry","Sweet & Sour","Peking","Gravy","Black Bean","Black Pepper","Garlic","Barbecue","Satay"];
+const OTHER={
+ rice:{title:"Fried Rice & Chow Mein",note:"Any sauce on top: +50p",kind:"rice",items:[
+  ["Special Fried Rice (with gravy)",920],["King Prawn Fried Rice",920],["Beef Fried Rice",850],
+  ["Chicken Breast Fried Rice (Small)",720],["Chicken Breast Fried Rice (Large)",850],["Char Siu Fried Rice",850],
+  ["Ham Fried Rice",850],["Singapore Fried Rice",900],
+  ["Special Chow Mein (with gravy)",920],["King Prawn Chow Mein",920],["Beef Chow Mein",850],
+  ["Chicken Breast Chow Mein (Small)",720],["Chicken Breast Chow Mein (Large)",850],["Char Siu Chow Mein",850],
+  ["Singapore Chow Mein",900],["Singapore Vermicelli",900]]},
+ starters:{title:"Starters & Soup",kind:"fixed",items:[
+  ["Crispy Aromatic Duck with Hoisin (1/4)",1100],["Crispy Aromatic Duck with Hoisin (1/2)",2100],
+  ["Spare Ribs with Honey & Lemon Sauce",750],["Spare Ribs with BBQ Sauce",750],["Spare Ribs with Peking Sauce",750],
+  ["Spare Ribs with Salted Chilli",750],["Hot Wings with Salted Chilli",750],["Hot Wings with Peking Sauce",750],
+  ["Chicken with Salted Chilli",750],["Crispy Mini Spring Rolls (10)",520],["Spring Rolls (2)",520],["Chicken Cheese Rolls",570],
+  ["Chicken Skewers with Satay Sauce (5)",750],["Crispy Duck Spring Rolls (8)",750],["Prawn Toast",750],["Salt & Chilli Chicken Ball",750],
+  ["Chicken Noodle Soup",450],["Chicken Mushroom Soup",450],["Chicken Sweetcorn Soup",450],["Hot & Sour Soup",450]]},
+ euro:{title:"European",note:"All come with chips & gravy",kind:"fixed",items:[
+  ["Roast Spring Chicken",820],["Fillet Steak (European)",1450],["Mixed Grill",950],["Chicken Ball Supper",820],
+  ["Sliced Chicken Supper",820],["Sausage Supper",820],["Bacon, Liver & Chips",820],["Bacon, Sausage & Chips",820],
+  ["Bacon, Liver, Sausage & Chips",880]]},
+ extras:{title:"Extra Portions",kind:"fixed",items:[
+  ["Beansprouts",500],["Chicken Balls (8)",650],["Cashew Nuts",450],["Sausages (3)",400],["French Fried Onion Ring",450],
+  ["Fried Onion",450],["Mushroom with Gravy",500],["Prawn Crackers",280],["Soft Noodles",570],
+  ["Sauce (Small)",300,"{sauce} Sauce (Small)"],["Sauce (Large)",400,"{sauce} Sauce (Large)"],
+  ["Fried or Boiled Rice (Small)",400,"{rice} (Small)"],["Fried or Boiled Rice (Large)",500,"{rice} (Large)"],
+  ["Rice with sauce (Small)",450,"{rice} with {sauce} (Small)"],["Rice with sauce (Large)",520,"{rice} with {sauce} (Large)"],
+  ["Garlic Butter Chips",550],["Chips",400],
+  ["Chips with sauce (Small)",450,"Chips with {sauce} (Small)"],["Chips with sauce (Large)",520,"Chips with {sauce} (Large)"]]},
+ deals:{title:"Deals",note:"Special Meals come with a can and any sauce",kind:"fixed",items:[
+  ["Special Meal – 1/2 1/2, Chicken Balls (2)",780],["Special Meal – 1/2 1/2, Sausages (2)",780],
+  ["Special Meal – 1/2 1/2, Ribs (2)",780],["Special Meal – 1/2 1/2, Chicken Nugget",780],
+  ["Munch Box",2150],["3 in 1 (½ rice ½ chips, shredded chicken, drink)",820],["Snack Box",840],["Small Snack Box",690]]},
+};
+
+/* ===== SHORTHAND (edit here) ===== [full, written, group] */
+const ABBR=[
+ ["Honey & Lemon","HL","Starters"],["Barbecue","BBQ","Starters"],
+ ["Spring Roll","S/Roll","Starters"],["Mini Spring Roll","Mini S/Roll","Starters"],["Duck Spring Roll","Duck S/Roll","Starters"],
+ ["Special","Sp","Meats"],["King Prawn","KP","Meats"],["Chicken","Ch","Meats"],["Roast Duck","Duck","Meats"],
+ ["Salt & Chilli / Salted Chilli","SC","Sauces"],["Garlic & Onion","Garlic O","Sauces"],["Honey Chilli","HC","Sauces"],
+ ["Satay","Sat","Sauces"],["Black Bean","BB","Sauces"],["Black Pepper","BP","Sauces"],["Ginger & Spring Onion","Ginger S/O","Sauces"],
+ ["Pineapple","Pine","Sauces"],["Mushroom","Mush","Sauces"],["Cashew Nuts","Cashew","Sauces"],["Curry","C","Sauces"],
+ ["Peking","Pek","Sauces"],["Sweet & Sour Cantonese Style","SS (c/s)","Sauces"],
+ ["Boiled Rice","BR","Sides"],["Fried Rice","FR","Sides"],["Half & Half","1/2 1/2","Sides"],["Soft Noodles","SN","Sides"],
+ ["Chicken Ball Supper","8","Suppers"],["Sliced Chicken Supper","9","Suppers"],["Sausage Supper","10","Suppers"],
+ ["French Fried Onion Rings","FFO","Extras"],["Prawn Crackers","PC","Extras"],["Garlic Butter Chips","GB Chips","Extras"],["Munch Box","MB","Extras"],
+];
+const MEAT_AB={"Chicken":"Ch","King Prawn":"KP","Special":"Sp","Roast Duck":"Duck"};
+const SAUCE_AB={"Salt & Chilli":"SC","Garlic & Onion":"Garlic O","Honey Chilli Sauce":"HC","Satay Sauce":"Sat","Black Bean Sauce":"BB",
+ "Black Pepper Sauce":"BP","Ginger & Spring Onion":"Ginger S/O","Pineapple":"Pine","Mushroom":"Mush","Cashew Nuts":"Cashew",
+ "Curry Sauce":"C","Peking Sauce":"Pek","Sweet & Sour Cantonese Style":"SS (c/s)"};
+const SIDE_AB={"Boiled Rice":"BR","Chips":"Chips","Fried Rice":"FR","Half & Half":"1/2 1/2","Soft Noodles":"SN"};
+const TUB_AB={"Curry":"C","Peking":"Pek","Barbecue":"BBQ","Satay":"Sat","Black Bean":"BB","Black Pepper":"BP"};
+const FIXED_AB={"Spare Ribs with Honey & Lemon Sauce":"Spare Ribs HL","Spare Ribs with BBQ Sauce":"Spare Ribs BBQ",
+ "Spare Ribs with Peking Sauce":"Spare Ribs Pek","Spare Ribs with Salted Chilli":"Spare Ribs SC","Hot Wings with Salted Chilli":"Hot Wings SC",
+ "Hot Wings with Peking Sauce":"Hot Wings Pek","Chicken with Salted Chilli":"Ch SC","Crispy Mini Spring Rolls (10)":"Mini S/Roll",
+ "Spring Rolls (2)":"S/Roll","Crispy Duck Spring Rolls (8)":"Duck S/Roll","Chicken Ball Supper":"8","Sliced Chicken Supper":"9",
+ "Sausage Supper":"10","French Fried Onion Ring":"FFO","Prawn Crackers":"PC","Garlic Butter Chips":"GB Chips","Munch Box":"MB"};
+
+/* build item list */
+const CATS=[{id:"mains",label:"Main dishes"},{id:"rice",label:"Fried rice & chow mein"},{id:"starters",label:"Starters & soup"},
+  {id:"euro",label:"European"},{id:"extras",label:"Extras"},{id:"deals",label:"Deals"}];
+const ITEMS=[];
+MAINS.forEach(m=>m.s.forEach(s=>ITEMS.push({id:m.g+"|"+s,name:m.g+" – "+s,cat:"mains",price:m.p,kind:"main",g:m.g,s})));
+for(const [cat,o] of Object.entries(OTHER)) o.items.forEach(([n,p,say])=>ITEMS.push({id:n,name:n,say,cat,price:p,kind:o.kind}));
+
+/* ===== state ===== */
+const KEY="bp-trainer-v1";
+let st={miss:{},amiss:{},right:0,total:0,streak:0,cats:["mains","rice"],mode:"one",n:1,short:false,amode:"write"};
+try{const s=JSON.parse(localStorage.getItem(KEY)||"null");if(s)st={...st,...s}}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
+
+const $=id=>document.getElementById(id);
+const gbp=p=>"£"+(p/100).toFixed(2);
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const wpick=(a,w)=>{let t=a.reduce((s,x)=>s+w(x),0),r=Math.random()*t;for(const x of a){r-=w(x);if(r<=0)return x}return a[a.length-1]};
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+let cur=null, answered=false;
+
+function makeLine(){
+  const cats=st.cats.length?st.cats:["mains"];
+  const cat=pick(cats);
+  const pool=ITEMS.filter(i=>i.cat===cat);
+  const it=wpick(pool,i=>1+Math.min(6,(st.miss[i.id]||0)*2));
+  let text=(it.say||it.name).replace("{sauce}",pick(TUB_SAUCES)).replace("{rice}",pick(["Fried Rice","Boiled Rice"]));
+  const extras=[];let short=FIXED_AB[it.name]||text;
+  if(it.kind==="main"){
+    const s=wpick(SIDES,x=>x.w);extras.push({label:"with "+s.label,p:s.p,ab:SIDE_AB[s.label]});
+    short=[MEAT_AB[it.g]||it.g,SAUCE_AB[it.s]||it.s.replace(/ Sauce$/,""),SIDE_AB[s.label]].join(" ");
+  }
+  if(it.kind==="rice"&&Math.random()<.35){const t=pick(TUB_SAUCES);extras.push({label:"+ "+t+" sauce",p:RICE_SAUCE_EXTRA,ab:"+ "+(TUB_AB[t]||t)})}
+  const qty=st.mode==="order"&&Math.random()<.15?2:1;
+  const unit=it.price+extras.reduce((s,e)=>s+e.p,0);
+  return {it,text,short,extras,qty,unit,total:unit*qty};
+}
+function lineHTML(l){
+  if(st.short){
+    const subs=l.it.kind==="main"?"":l.extras.map(e=>`<span class="s">${esc(e.ab)}</span>`).join("");
+    return `<div class="ln"><span class="q">${l.qty}×</span><span class="n">${esc(l.short)}${subs}</span></div>`;
+  }
+  return `<div class="ln"><span class="q">${l.qty}×</span><span class="n">${esc(l.text)}${l.extras.map(e=>`<span class="s">${esc(e.label)}</span>`).join("")}</span></div>`;
+}
+function renderDocket(){if(cur)$("lines").innerHTML=cur.lines.map(lineHTML).join("")}
+function newQ(){
+  const n=st.mode==="order"?2+Math.floor(Math.random()*3):1;
+  const lines=[];const seen=new Set();
+  while(lines.length<n){const l=makeLine();if(seen.has(l.it.id)&&lines.length<ITEMS.length)continue;seen.add(l.it.id);lines.push(l)}
+  cur={lines,total:lines.reduce((s,l)=>s+l.total,0)};answered=false;
+  renderDocket();
+  $("tno").textContent="#"+String(st.n).padStart(3,"0");
+  $("fb").hidden=true;$("ans").value="";$("go").textContent="Check";$("ans").disabled=false;
+  $("ans").focus({preventScroll:true});
+}
+function parse(v){
+  v=v.replace(/[£\s,]/g,"");if(!v)return null;
+  if(/^\d{3,}$/.test(v))return +v;          // 950 -> £9.50
+  const n=parseFloat(v);return isNaN(n)?null:Math.round(n*100);
+}
+function breakdown(){
+  let h=cur.lines.map(l=>{
+    let r=`<div><span>${l.qty>1?l.qty+"× ":""}${esc(l.text)}</span><span>${gbp(l.it.price)}</span></div>`;
+    r+=l.extras.map(e=>`<div class="sub"><span>${esc(e.label)}</span><span>${e.p?"+"+gbp(e.p):"incl."}</span></div>`).join("");
+    if(l.qty>1)r+=`<div class="sub"><span>× ${l.qty}</span><span>${gbp(l.total)}</span></div>`;
+    return r}).join("");
+  return `<div class="bd">${h}<div class="tot"><span>Total</span><span>${gbp(cur.total)}</span></div></div>`;
+}
+function check(given){
+  answered=true;st.n++;st.total++;
+  const ok=given===cur.total;
+  cur.lines.forEach(l=>{const id=l.it.id;st.miss[id]=ok?Math.max(0,(st.miss[id]||0)-1):(st.miss[id]||0)+1;if(!st.miss[id])delete st.miss[id]});
+  if(ok){st.right++;st.streak++}else st.streak=0;
+  save();stats();
+  const fb=$("fb");fb.className="fb "+(ok?"ok":"no");
+  fb.innerHTML=`<h2>${ok?"Correct — "+gbp(cur.total):given==null?"Answer: "+gbp(cur.total):"Not quite — it's "+gbp(cur.total)}</h2>${ok&&st.mode==="one"&&!cur.lines[0].extras.length&&!st.short?"":breakdown()}`;
+  fb.hidden=false;$("go").textContent="Next";$("ans").disabled=true;$("go").focus({preventScroll:true});
+}
+function stats(){
+  $("st-streak").textContent=st.streak;
+  $("st-acc").textContent=st.total?Math.round(st.right/st.total*100)+"%":"–";
+}
+$("form").addEventListener("submit",e=>{
+  e.preventDefault();
+  if(answered){newQ();return}
+  const v=parse($("ans").value);
+  if(v==null){$("hint").textContent="Enter a price like 9.50 — or tap Skip to see the answer.";return}
+  $("hint").textContent="Type the total, e.g. 9.50 or 950. Enter to check.";
+  check(v);
+});
+$("skip").onclick=()=>{if(answered)newQ();else check(null)};
+
+function renderCats(){
+  $("cats").innerHTML=CATS.map(c=>`<button class="chip" data-c="${c.id}" aria-pressed="${st.cats.includes(c.id)}">${c.label}</button>`).join("");
+  $("cats").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    const c=b.dataset.c;st.cats=st.cats.includes(c)?st.cats.filter(x=>x!==c):[...st.cats,c];
+    if(!st.cats.length)st.cats=[c];save();renderCats();newQ()});
+}
+function setMode(m){st.mode=m;save();$("m-one").setAttribute("aria-pressed",m==="one");$("m-order").setAttribute("aria-pressed",m==="order");newQ()}
+$("m-one").onclick=()=>setMode("one");$("m-order").onclick=()=>setMode("order");
+
+function setShort(on){st.short=on;save();$("d-full").setAttribute("aria-pressed",!on);$("d-short").setAttribute("aria-pressed",on);renderDocket()}
+$("d-full").onclick=()=>setShort(false);$("d-short").onclick=()=>setShort(true);
+
+/* ===== shorthand quiz ===== */
+let aq=null,aDone=false;
+const norm=s=>s.toLowerCase().replace(/½/g,"12").replace(/[^a-z0-9]/g,"");
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+function newA(){
+  const prev=aq&&aq.it;let it;
+  do{it=wpick(ABBR,a=>1+Math.min(6,(st.amiss[a[1]]||0)*2))}while(it===prev);
+  aq={it};aDone=false;
+  const write=st.amode==="write";
+  $("a-label").textContent=write?"WRITE THE SHORTHAND FOR":"WHAT DOES THIS MEAN?";
+  $("a-grp").textContent=it[2].toUpperCase();
+  $("a-prompt").textContent=write?it[0]:it[1];
+  $("a-form").hidden=!write;$("a-opts").hidden=write;$("a-fb").hidden=true;$("a-next").hidden=true;
+  $("a-go").textContent="Check";$("a-ans").disabled=false;$("a-ans").value="";
+  if(write){$("a-ans").focus({preventScroll:true});return}
+  let others=shuffle(ABBR.filter(x=>x!==it&&x[2]===it[2]));
+  if(others.length<3)others=others.concat(shuffle(ABBR.filter(x=>x!==it&&x[2]!==it[2])));
+  const opts=shuffle([it,...others.slice(0,3)]);
+  $("a-opts").innerHTML=opts.map((o,i)=>`<button class="opt" type="button" data-i="${ABBR.indexOf(o)}">${esc(o[0])}</button>`).join("");
+  $("a-opts").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    if(aDone)return;const ok=ABBR[+b.dataset.i]===it;
+    $("a-opts").querySelectorAll("button").forEach(x=>{x.disabled=true;if(ABBR[+x.dataset.i]===it)x.classList.add("right")});
+    if(!ok)b.classList.add("wrong");
+    gradeA(ok,true);
+  });
+}
+function gradeA(ok,given){
+  aDone=true;st.total++;const k=aq.it[1];
+  st.amiss[k]=ok?Math.max(0,(st.amiss[k]||0)-1):(st.amiss[k]||0)+1;if(!st.amiss[k])delete st.amiss[k];
+  if(ok){st.right++;st.streak++}else st.streak=0;save();stats();
+  const fb=$("a-fb");fb.className="fb "+(ok?"ok":"no");
+  fb.innerHTML=`<h2>${ok?"Correct":given?"Not quite":"Answer"}</h2><div class="bd"><div><span>${esc(aq.it[0])}</span><span>${esc(aq.it[1])}</span></div></div>`;
+  fb.hidden=false;$("a-ans").disabled=true;$("a-go").textContent="Next";
+  $("a-next").hidden=st.amode==="write";
+  (st.amode==="write"?$("a-go"):$("a-next")).focus({preventScroll:true});
+}
+$("a-form").addEventListener("submit",e=>{
+  e.preventDefault();if(aDone){newA();return}
+  const v=$("a-ans").value;if(!norm(v))return;
+  gradeA(norm(v)===norm(aq.it[1]),true);
+});
+$("a-next").onclick=newA;
+$("a-skip").onclick=()=>{if(aDone){newA();return}
+  if(st.amode==="read")$("a-opts").querySelectorAll("button").forEach(x=>{x.disabled=true;if(ABBR[+x.dataset.i]===aq.it)x.classList.add("right")});
+  gradeA(false,false)};
+function setAMode(m){st.amode=m;save();$("a-write").setAttribute("aria-pressed",m==="write");$("a-read").setAttribute("aria-pressed",m==="read");newA()}
+$("a-write").onclick=()=>setAMode("write");$("a-read").onclick=()=>setAMode("read");
+(function(){
+  const groups=[...new Set(ABBR.map(a=>a[2]))];
+  $("a-list").innerHTML=`<div class="label">All shorthand</div>`+groups.map(g=>`<div class="grp"><h3><span>${g}</span></h3><table class="rules-t">${
+    ABBR.filter(a=>a[2]===g).map(a=>`<tr><td>${esc(a[0])}</td><td><b>${esc(a[1])}</b></td></tr>`).join("")}</table></div>`).join("")+
+    `<p class="flag">Not listed here (Pork, Beef, Veg, Kung Po, Szechuan…) gets written in full. Dish order: meat, sauce, side, e.g. Ch C FR.</p>`;
+})();
+
+/* tabs */
+const views={quiz:"v-quiz",abbr:"v-abbr",prices:"v-prices",rules:"v-rules"};
+for(const k in views)$("tab-"+k).onclick=()=>{
+  for(const j in views){$("tab-"+j).setAttribute("aria-selected",j===k);const v=$(views[j]);v.hidden=j!==k;if(j===k)v.style.display="flex"}
+  if(k==="abbr"&&st.amode==="write"&&!aDone)$("a-ans").focus({preventScroll:true});
+};
+
+/* price list */
+function renderPrices(q=""){
+  q=q.trim().toLowerCase();const out=[];
+  MAINS.forEach(m=>{
+    const s=m.s.filter(x=>!q||(m.g+" "+x).toLowerCase().includes(q));
+    if(!s.length)return;
+    out.push(`<div class="grp"><h3><span>${m.g} dishes</span><em>${gbp(m.p)}</em></h3><p class="note">Boiled rice, chips or fried rice +30p · half & half +50p · soft noodles +£1</p><div class="sauces">${s.map(x=>`<span>${esc(x)}</span>`).join("")}</div></div>`)});
+  for(const o of Object.values(OTHER)){
+    const it=o.items.filter(([n])=>!q||n.toLowerCase().includes(q)||o.title.toLowerCase().includes(q));
+    if(!it.length)continue;
+    out.push(`<div class="grp"><h3><span>${o.title}</span></h3>${o.note?`<p class="note">${o.note}</p>`:""}<ul class="items">${it.map(([n,p])=>`<li><span>${esc(n)}</span><b>${gbp(p)}</b></li>`).join("")}</ul></div>`)}
+  $("plist").innerHTML=out.join("")||`<p class="hint">Nothing matches “${esc(q)}”.</p>`;
+}
+$("q").addEventListener("input",e=>renderPrices(e.target.value));
+
+$("rules").innerHTML=`
+<div class="grp"><h3><span>Main dish sides</span></h3><p class="note">Chicken, beef, pork, king prawn, special, veg, roast duck, fillet steak</p>
+<table>${SIDES.map(s=>`<tr><td>${s.label}</td><td>${s.p?"+"+gbp(s.p):"included"}</td></tr>`).join("")}</table></div>
+<div class="grp"><h3><span>Base prices</span></h3><table>${MAINS.map(m=>`<tr><td>${m.g}</td><td>${gbp(m.p)}</td></tr>`).join("")}</table></div>
+<div class="grp"><h3><span>Other add-ons</span></h3><table>
+<tr><td>Sauce on fried rice / chow mein</td><td>+£0.50</td></tr>
+<tr><td>Peas, onion or mushroom</td><td>+£0.30 each</td></tr>
+<tr><td>European dishes</td><td>chips & gravy incl.</td></tr>
+<tr><td>Special Meals (with can)</td><td>£7.80</td></tr></table></div>
+<p class="flag">"Half & Half" = half rice, half chips.</p>`;
+
+stats();renderCats();renderPrices();
+$("m-one").setAttribute("aria-pressed",st.mode==="one");$("m-order").setAttribute("aria-pressed",st.mode==="order");
+$("d-full").setAttribute("aria-pressed",!st.short);$("d-short").setAttribute("aria-pressed",st.short);
+$("a-write").setAttribute("aria-pressed",st.amode==="write");$("a-read").setAttribute("aria-pressed",st.amode==="read");
+newA();newQ();
+</script>
+</body>
+</html>
